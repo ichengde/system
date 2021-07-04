@@ -18,7 +18,7 @@ class TestMainVerticle {
   @Before
   fun deploy_verticle(testContext: TestContext) {
     val vertx = rule.vertx()
-    vertx.deployVerticle(MainVerticle(), testContext.asyncAssertSuccess())
+    vertx.deployVerticle(App(), testContext.asyncAssertSuccess())
   }
 
   @Test

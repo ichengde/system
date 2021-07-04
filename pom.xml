@@ -19,7 +19,7 @@
 
     <vertx.version>4.1.0</vertx.version>
 
-    <main.verticle>com.chengde.system.MainVerticle</main.verticle>
+    <main.verticle>com.chengde.system.App</main.verticle>
     <launcher.class>io.vertx.core.Launcher</launcher.class>
   </properties>
 
@@ -36,6 +36,7 @@
   </dependencyManagement>
 
   <dependencies>
+
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web-client</artifactId>
