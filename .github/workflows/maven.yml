@@ -1,0 +1,51 @@
+# This workflow will build a Java project with Maven
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: Java CI with Maven and Deploy
+
+on:
+  push:
+    branches: [ master ]
+    paths-ignore:   # 下列文件的变更不触发部署，可以自行添加
+      - README.md
+      - LICENSE
+  pull_request:
+    branches: [ master ]
+
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Java JDK
+      uses: actions/setup-java@v1.4.3
+      with:
+        java-version: 11
+
+    - name: Build with Maven
+      run: package  -Dmaven.test.skip=true
+      env:
+        connectionUri: ${{ secrets.postgres }}
+
+    - name: Deploy to Server  # 第二步，rsync推文件
+      uses: AEnterprise/rsync-deploy@v1.0  # 使用别人包装好的步骤镜像
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}   # 引用配置，SSH私钥
+        ARGS: -avz --delete --exclude='*.pyc'   # rsync参数，排除.pyc文件
+        SERVER_PORT: '22'  # SSH端口
+        FOLDER: ./target/*  # 要推送的文件夹，路径相对于代码仓库的根目录
+        SERVER_IP: ${{ secrets.SSH_HOST }}  # 引用配置，服务器的host名（IP或者域名domain.com）
+        USERNAME: ${{ secrets.SSH_USERNAME }}  # 引用配置，服务器登录名
+        SERVER_DESTINATION: ~/workspace/system-api/   # 部署到目标文件夹
+
+    - name: Restart Service
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.DEPLOY_KEY }}
+        script: |
+          supervisorctl restart system
