@@ -1,5 +1,6 @@
 package com.chengde.system
 
+import com.chengde.system.service.getNote
 import com.chengde.system.service.note
 import io.vertx.ext.auth.User
 import io.vertx.ext.auth.jwt.JWTAuth
@@ -35,7 +36,9 @@ class App : CoroutineVerticle() {
     routerBuilder.rootHandler(dealBody())
     routerBuilder.rootHandler(appendDataBase())
 
+
     routerBuilder.operation("loginUser").coroutineHandler { ctx -> login(ctx) }
+    routerBuilder.operation("getNote").coroutineHandler { ctx -> getNote(ctx) }
     val openApiRouter = routerBuilder.createRouter()
 
     router.route("/note").coroutineHandler { ctx -> note(ctx) }

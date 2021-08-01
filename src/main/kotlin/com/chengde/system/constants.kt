@@ -8,7 +8,9 @@ const val dbIdentity = "postgres"
 
 var connectionUri: String = System.getenv("connectionUri")
 
-const val port = 18889
+const val port = 19998
+const val testPort = 20001
+ val jumpURL = listOf<String>("/user/login")
 
 val JWTconfig: JWTAuthOptions = JWTAuthOptions()
   .addPubSecKey(

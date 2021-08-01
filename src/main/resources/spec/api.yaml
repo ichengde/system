@@ -10,28 +10,14 @@ info:
 servers:
 - url: https://virtserver.swaggerhub.com/ichengde/system/0.0.1
   description: SwaggerHub API Auto Mocking
-- url: https://localhost:18889
+- url: http://localhost:18889
+  description: SwaggerHub API Auto Mocking
 tags:
 - name: user
   description: Operations about user
+- name: note
+  description: Operations about note
 paths:
-  /user:
-    post:
-      tags:
-      - user
-      summary: Create user
-      description: This can only be done by the logged in user.
-      operationId: createUser
-      requestBody:
-        description: Created user object
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/User'
-        required: true
-      responses:
-        default:
-          description: successful operation
   /user/login:
     post:
       tags:
@@ -61,16 +47,41 @@ paths:
       responses:
         default:
           description: successful operation
-  /user/{username}:
+  /note/:
+    put:
+      tags:
+      - note
+      operationId: createNote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createNoteRequest'
+      responses:
+        default:
+          description: successful operation
+    post:
+      tags:
+      - note
+      operationId: updateNote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateNoteRequest'
+      responses:
+        "200":
+          description: successful operation
+        "400":
+          description: Invalid username/password supplied
+  /note/{id}:
     get:
       tags:
-      - user
-      summary: Get user by user name
-      operationId: getUserByName
+      - note
+      operationId: getNote
       parameters:
-      - name: username
+      - name: id
         in: path
-        description: The name that needs to be fetched. Use user1 for testing.
         required: true
         style: simple
         explode: false
@@ -82,54 +93,94 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/User'
-        "400":
-          description: Invalid username supplied
-        "404":
-          description: User not found
-    put:
+                $ref: '#/components/schemas/noteResponse'
+  /note/list:
+    get:
       tags:
-      - user
-      summary: Updated user
-      description: This can only be done by the logged in user.
-      operationId: updateUser
+      - note
+      operationId: getNoteList
       parameters:
-      - name: username
-        in: path
-        description: name that need to be updated
-        required: true
-        style: simple
-        explode: false
+      - name: offset
+        in: query
+        description: The number of items to skip before starting to collect the result set.
+        required: false
+        style: form
+        explode: true
         schema:
-          type: string
-      requestBody:
-        description: Updated user object
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/User'
-        required: true
+          minimum: 0
+          type: integer
       responses:
-        "400":
-          description: Invalid user supplied
-        "404":
-          description: User not found
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/noteListResponse'
 components:
   schemas:
+    App:
+      type: string
+      enum:
+      - note
+      - logistics
+      - wood
+    noteType:
+      type: number
+      enum:
+      - 0
+      - 1
+      - 2
+    createNoteRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        user_id:
+          type: string
+        type:
+          $ref: '#/components/schemas/noteType'
+    updateNoteRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        user_id:
+          type: string
+        type:
+          $ref: '#/components/schemas/noteType'
+    noteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        user_id:
+          type: string
+        type:
+          $ref: '#/components/schemas/noteType'
+    noteListResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/noteResponse'
     UserResponse:
       type: object
       properties:
         app:
-          type: integer
-          format: int64
+          type: array
+          items:
+            $ref: '#/components/schemas/App'
         token:
           type: string
           default: string
-      xml:
-        name: Order
     User:
       type: object
       properties:
@@ -139,16 +190,6 @@ components:
           type: string
       xml:
         name: User
-    Tag:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-      xml:
-        name: Tag
     ApiResponse:
       type: object
       properties:
@@ -159,6 +200,17 @@ components:
           type: string
         message:
           type: string
+  parameters:
+    offsetParam:
+      name: offset
+      in: query
+      description: The number of items to skip before starting to collect the result set.
+      required: false
+      style: form
+      explode: true
+      schema:
+        minimum: 0
+        type: integer
   requestBodies:
     UserArray:
       description: List of user object
@@ -170,15 +222,7 @@ components:
               $ref: '#/components/schemas/User'
       required: true
   securitySchemes:
-    petstore_auth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: http://petstore.swagger.io/oauth/dialog
-          scopes:
-            write:pets: modify pets in your account
-            read:pets: read your pets
-    api_key:
+    token:
       type: apiKey
-      name: api_key
+      name: token
       in: header

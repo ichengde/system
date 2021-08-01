@@ -10,22 +10,43 @@ import io.vertx.pgclient.PgPool
 
 
 fun userInfoHandling(): (RoutingContext) -> Unit {
-  return { ctx: RoutingContext ->
-    val provider = JWTAuth.create(ctx.vertx(), JWTconfig)
-    val token = ctx.request().getHeader("token")
-    if (token != null) {
-      provider.authenticate(json {
-        obj {
-          "token" to token
-          "options" to JWTconfig
-        }
-      }).onSuccess { user ->
-        ctx.setUser(user)
-        println(user)
-      }
+  return { ctx ->
+
+    val failHandler = {
+      ctx.response().statusCode = 401
+      ctx.json(json {
+        obj(
+          "message" to "auth fail"
+        )
+      })
     }
 
-    ctx.next()
+    val provider = JWTAuth.create(ctx.vertx(), JWTconfig)
+    val token = ctx.request().getHeader("token")
+
+    if (jumpURL.contains(ctx.normalizedPath())) {
+      ctx.next()
+    }
+
+    if (token != null) {
+      provider.authenticate(json {
+        obj(
+          "token" to token,
+          "options" to JWTconfig
+        )
+      }).onSuccess { user ->
+        ctx.setUser(user)
+
+        println(user)
+        ctx.next()
+      }.onFailure { err ->
+        println(err)
+
+        failHandler()
+      }
+    } else {
+      failHandler()
+    }
   }
 }
 
