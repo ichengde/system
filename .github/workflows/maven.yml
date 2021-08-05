@@ -26,7 +26,7 @@ jobs:
         java-version: 11
 
     - name: Build with Maven
-      run: package  -Dmaven.test.skip=true
+      run: mvn package  -Dmaven.test.skip=true
       env:
         connectionUri: ${{ secrets.postgres }}
 
