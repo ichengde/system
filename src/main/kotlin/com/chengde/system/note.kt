@@ -1,42 +1,81 @@
 package com.chengde.system.service
 
-import com.chengde.system.dbIdentity
-import com.chengde.system.toJson
-import io.vertx.core.Future
+import com.chengde.system.*
+import com.chengde.system.database.tables.references.NOTE
 import io.vertx.ext.web.RoutingContext
-import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
-import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.*
-
-suspend fun note(ctx: RoutingContext) {
-  val db = ctx.get<Future<SqlConnection>>(dbIdentity)
-  val con = db.await()
-  con.close()
+import org.jooq.CloseableDSLContext
 
 
-  val response = ctx.response();
-  response.putHeader("content-type", "text/plain");
-  response.end("test");
+fun getNote(ctx: RoutingContext, db: CloseableDSLContext) {
+  val id = ctx.pathParam("id")
+
+  val note = db.selectFrom(NOTE).where(NOTE.ID.eq(id)).fetchOne()
+
+  if (note !== null) {
+    ctx.json(note)
+  } else {
+    ctx.json(Response(code = 401, message = "not Found", data = null))
+  }
 }
 
 
-suspend fun getNote(ctx: RoutingContext) {
-  val db = ctx.get<Future<SqlConnection>>(dbIdentity)
-  val con = db.await()
+fun createNote(ctx: RoutingContext, db: CloseableDSLContext) {
+  val paramsJson = ctx.bodyAsJson
 
-  val id = ctx.pathParam("id")
-  val rs = con.preparedQuery(
-    """
-      SELECT *
-      FROM PUBLIC.note
-      WHERE id = $1
-    """.trimIndent()
+  val newNote = db.newRecord(NOTE)
+  newNote.content = paramsJson.getString("content")
+  newNote.title = paramsJson.getString("title")
+  newNote.type = paramsJson.getNumber("type").toShort()
+  newNote.userid = ctx.user().get("object_id")
+
+  val res = newNote.store()
+
+  ctx.json(if (res > 0) Response() else Response(code = 400, message = "create failed"))
+}
+
+
+fun updateNote(ctx: RoutingContext, db: CloseableDSLContext) {
+  val paramsJson = ctx.bodyAsJson
+  val note = db.fetchOne(
+    NOTE,
+    NOTE.ID.eq(paramsJson.getString("id")),
+    NOTE.USERID.eq(ctx.user().get<String>("object_id")),
   )
-    .execute(Tuple.of(id)).await()
 
-  con.close()
+  if (note != null) {
+    val currentVersion = paramsJson.getInteger("version")
+    if (note.version == currentVersion) {
 
+      note.content = paramsJson.getString("content")
+      note.title = paramsJson.getString("title")
+      note.type = paramsJson.getNumber("type").toShort()
+      note.userid = ctx.user().get("object_id")
+      note.version = currentVersion + 1
 
-  ctx.json(rs.toJson())
+      val res = note.store()
+      ctx.json(if (res > 0) Response() else Response(code = 400, message = "update failed"))
+    } else {
+      ctx.json(Response(code = 400, message = "outdated"))
+    }
+
+  } else {
+    ctx.json(Response(code = 400, message = "not found"))
+  }
+}
+
+fun listNote(ctx: RoutingContext, db: CloseableDSLContext) {
+  val page = ctx.pathParam("page")
+  val list = db.selectFrom(NOTE)
+    .orderBy(NOTE.CREATETIME)
+    .offset(page.toInt() * 30)
+    .limit(30).fetch()
+
+  ctx.response().end(list.formatJSON())
+}
+
+fun listCount(ctx: RoutingContext, db: CloseableDSLContext) {
+  val total = db.selectFrom(NOTE).where(NOTE.USERID.eq(ctx.user().get<String>("object_id"))).count()
+
+  ctx.json(Pagination(total))
 }

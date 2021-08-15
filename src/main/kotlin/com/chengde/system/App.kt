@@ -1,52 +1,42 @@
 package com.chengde.system
 
-import com.chengde.system.service.getNote
-import com.chengde.system.service.note
-import io.vertx.ext.auth.User
-import io.vertx.ext.auth.jwt.JWTAuth
+import com.chengde.system.service.*
+import io.vertx.core.Handler
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.ext.web.handler.CorsHandler
-import io.vertx.ext.web.openapi.Operation
-import io.vertx.ext.web.openapi.RouterBuilder
 import io.vertx.ext.web.validation.BadRequestException
 import io.vertx.ext.web.validation.BodyProcessorException
 import io.vertx.ext.web.validation.ParameterProcessorException
 import io.vertx.ext.web.validation.RequestPredicateException
-import io.vertx.kotlin.core.json.json
-import io.vertx.kotlin.core.json.obj
 import io.vertx.kotlin.coroutines.CoroutineVerticle
-import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
-import io.vertx.pgclient.PgPool
 import kotlinx.coroutines.launch
+import org.jooq.*
+import org.jooq.impl.*
+import java.sql.*
+import javax.sql.*
 import kotlin.coroutines.CoroutineContext
-
 
 class App : CoroutineVerticle() {
 
   override suspend fun start() {
     val router = Router.router(vertx)
-    val routerBuilder = RouterBuilder.create(vertx, "src/main/resources/spec/api.yaml").await()
+    router.route().handler(corsHandling())
+    router.route().handler(userInfoHandling())
+    router.route().handler(dealBody())
 
-    routerBuilder.rootHandler(corsHandling())
-    routerBuilder.rootHandler(userInfoHandling())
-    routerBuilder.rootHandler(dealBody())
-    routerBuilder.rootHandler(appendDataBase())
+    router.route("/user/login").coroutineHandler { ctx, db -> login(ctx, db)}
 
-
-    routerBuilder.operation("loginUser").coroutineHandler { ctx -> login(ctx) }
-    routerBuilder.operation("getNote").coroutineHandler { ctx -> getNote(ctx) }
-    val openApiRouter = routerBuilder.createRouter()
-
-    router.route("/note").coroutineHandler { ctx -> note(ctx) }
+    router.get("/note/:id").coroutineHandler { ctx, db -> getNote(ctx, db) }
+    router.post("/note/create").coroutineHandler { ctx, db -> createNote(ctx, db) }
+    router.post("/note/update").coroutineHandler { ctx, db -> updateNote(ctx, db) }
+    router.get("/note/list/:page").coroutineHandler { ctx, db -> listNote(ctx, db) }
+    router.get("/note/list/count").coroutineHandler { ctx, db -> listCount(ctx, db) }
 
     vertx
       .createHttpServer()
       .requestHandler(router)
-      .requestHandler(openApiRouter)
       .listen(port) { http ->
         if (http.succeeded()) {
           println("HTTP server started on port $port")
@@ -55,26 +45,19 @@ class App : CoroutineVerticle() {
   }
 
 
-
-  private fun Route.coroutineHandler(fn: suspend (RoutingContext) -> Unit) {
+  private fun Route.coroutineHandler(fn: suspend (RoutingContext, CloseableDSLContext) -> Unit) {
     handler { ctx ->
       launch(ctx.vertx().dispatcher() as CoroutineContext) {
         try {
-          fn(ctx)
-        } catch (e: Exception) {
-          ctx.fail(e)
-          throw e
-        }
-      }
-    }
-  }
 
+          DSL.using(
+            System.getenv("URL"),
+            System.getenv("USER"),
+            System.getenv("PASSWORD")
+          ).use {
+            fn(ctx, it)
+          }
 
-  private fun Operation.coroutineHandler(fn: suspend (RoutingContext) -> Unit) {
-    handler { ctx ->
-      launch(ctx.vertx().dispatcher() as CoroutineContext) {
-        try {
-          fn(ctx)
         } catch (e: Exception) {
           ctx.fail(e)
           throw e
@@ -96,5 +79,6 @@ class App : CoroutineVerticle() {
 
     }
   }
-}
 
+
+}

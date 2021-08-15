@@ -1,73 +1,44 @@
 package com.chengde.system
 
-import io.vertx.core.Future
-import io.vertx.core.json.JsonObject
+import com.chengde.system.database.tables.references.APP
+import com.chengde.system.database.tables.references.APP_OF_USER
+import com.chengde.system.database.tables.references.USER
 import io.vertx.ext.auth.JWTOptions
-import io.vertx.ext.auth.authentication.AuthenticationProvider
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.RoutingContext
-import io.vertx.kotlin.core.json.array
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.obj
-import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
-import io.vertx.sqlclient.Tuple
+import org.jooq.CloseableDSLContext
 
 
-suspend fun login(ctx: RoutingContext) {
-  val db = ctx.get<Future<SqlConnection>>(dbIdentity)
+suspend fun login(ctx: RoutingContext, db: CloseableDSLContext) {
   val body = ctx.bodyAsJson
   val username = body.getString("username")
   val password = body.getString("password")
 
-  val con = db.await()
-  val rs = con.preparedQuery(
-    """
-      SELECT *
-      FROM PUBLIC.USER
-      WHERE USERNAME = $1
-        AND PASSWORD = $2
-    """.trimIndent()
-  )
-    .execute(Tuple.of(username, password)).await()
+  val user = db
+    .selectFrom(USER)
+    .where(USER.USERNAME.eq(username), USER.PASSWORD.eq(password))
+    .fetchOne()
 
-  if (rs.count() == 0) {
-    ctx.response().end(json {
-      obj(
-        "message" to "Invalid username/password supplied",
-        "code" to 400
-      ).encode()
-    })
+  if (user == null) {
+    ctx.json(Response(code = 400, message = "Invalid username/password supplied", data = null))
   } else {
-
-    val user = rs.first()
 
     val provider = JWTAuth.create(ctx.vertx(), JWTconfig)
     val token = provider.generateToken(
       json {
         obj(
-          "object_id" to user.getString("object_id"),
-          "username" to user.getString("username")
+          "object_id" to user.objectId,
+          "username" to user.username
         )
       },
       JWTOptions().setExpiresInMinutes(ExpiresInMinutesTime)
     )
 
-    val apps =
-      con.preparedQuery(
-        """
-          SELECT name, remark
-          FROM APP
-          WHERE ID in
-              (SELECT APP_ID
-                FROM PUBLIC.APP_OF_USER
-                WHERE USER_ID =
-                    (SELECT ID
-                      FROM PUBLIC.USER
-                      WHERE USERNAME = $1
-                        AND PASSWORD = $2))
-        """.trimIndent()
-      ).execute(Tuple.of(username, password)).await()
+    val appIds = db.select(APP_OF_USER.APP_ID).from(APP_OF_USER).where(APP_OF_USER.USER_ID.eq(user.id)).fetch()
+
+    val apps = db.selectFrom(APP).where(APP.ID.`in`(appIds))
 
     ctx.response().end(
       json {
@@ -76,8 +47,8 @@ suspend fun login(ctx: RoutingContext) {
             "token" to token,
             "app" to apps.map {
               return@map obj(
-                "name" to it.getString("name"),
-                "remark" to (it.getString("remark") ?: "")
+                "name" to it.name,
+                "remark" to (it.remark ?: "")
               )
             }
           ),
@@ -87,5 +58,5 @@ suspend fun login(ctx: RoutingContext) {
     )
   }
 
-  con.close()
 }
+

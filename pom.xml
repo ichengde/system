@@ -229,14 +229,6 @@
         <artifactId>jooq-codegen-maven</artifactId>
         <version>${jooq.version}</version>
 
-        <!-- The plugin should hook into the generate goal -->
-        <executions>
-          <execution>
-            <goals>
-              <goal>generate</goal>
-            </goals>
-          </execution>
-        </executions>
 
         <dependencies>
           <dependency>
@@ -253,6 +245,7 @@
             <driver>org.postgresql.Driver</driver>
             <!--suppress UnresolvedMavenProperty -->
             <url>${env.URL}</url>
+            <!--suppress UnresolvedMavenProperty -->
             <user>${env.USER}</user>
             <!--suppress UnresolvedMavenProperty -->
             <password>${env.PASSWORD}</password>

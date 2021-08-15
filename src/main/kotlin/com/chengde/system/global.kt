@@ -1,5 +1,6 @@
 package com.chengde.system
 
+import io.vertx.ext.auth.User
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
@@ -26,27 +27,40 @@ fun userInfoHandling(): (RoutingContext) -> Unit {
 
     if (jumpURL.contains(ctx.normalizedPath())) {
       ctx.next()
-    }
-
-    if (token != null) {
-      provider.authenticate(json {
-        obj(
-          "token" to token,
-          "options" to JWTconfig
-        )
-      }).onSuccess { user ->
-        ctx.setUser(user)
-
-        println(user)
-        ctx.next()
-      }.onFailure { err ->
-        println(err)
-
-        failHandler()
-      }
     } else {
-      failHandler()
+
+      if (token != null) {
+        provider.authenticate(json {
+          obj(
+            "token" to token,
+            "options" to JWTconfig
+          )
+        }).onSuccess { user ->
+          ctx.setUser(user)
+
+          ctx.next()
+
+        }.onFailure { err ->
+          println(err)
+
+          failHandler()
+        }
+      } else {
+        val devAC = System.getenv("DEV_AC")
+        if (devAC !== null) {
+          val temp = User.create(json {
+            obj("object_id" to devAC)
+          })
+
+          ctx.setUser(temp)
+          ctx.next()
+        } else {
+          failHandler()
+        }
+      }
+
     }
+
   }
 }
 
